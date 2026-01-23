@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>$1,800+ Stimulus Relief Benefits</title>
+    <link rel="stylesheet" href="styles.css" />
+
+    <script>
+      // Wait for DOM to be ready
+      (async () => {
+        // Wait for DOM to be fully loaded - handle all states
+        if (document.readyState === "loading") {
+          await new Promise((resolve) =>
+            document.addEventListener("DOMContentLoaded", resolve)
+          );
+        } else if (document.readyState === "interactive") {
+          // DOM is loading but not complete, wait a bit
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        // Try to find button, with retry logic
+        let btn = document.getElementById("continueClick");
+        let retries = 10;
+        while (!btn && retries > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          btn = document.getElementById("continueClick");
+          retries--;
+        }
+
+        const MAX_LOADING_TIME = 5000; // 5 seconds
+
+        // Show loader on button
+        if (btn) {
+          btn.classList.add("loading");
+          btn.href = "#";
+        } else {
+          console.error(
+            "Button with id 'continueClick' not found after retries!"
+          );
+        }
+
+        // Helper function to update button and remove loader
+        const updateButton = (clickid, gtgResult) => {
+          if (!btn) return;
+
+          // If gtg returns 1, redirect to google.com
+          if (gtgResult === 1) {
+            btn.href = "https://google.com";
+            btn.classList.remove("loading");
+            return;
+          }
+
+          // Otherwise, use the normal clickid logic
+          if (clickid) {
+            const domain = window.location.hostname.replace(/^www\./, "");
+
+            // Extract URL parameters from current page to persist tracking data
+            const currentUrl = new URL(window.location.href);
+            const params = new URLSearchParams(currentUrl.search);
+
+            // Remove noise parameters (same as clickid.php does)
+            params.delete("cost");
+            params.delete("ref_id");
+            // Don't include clickid in params since we're adding it separately
+            params.delete("clickid");
+
+            // Build the tracking URL with clickid
+            let url =
+              "https://trk." +
+              domain +
+              "/click?clickid=" +
+              encodeURIComponent(clickid);
+
+            // Append all remaining URL parameters for RedTrack session tracking
+            const remainingParams = params.toString();
+            if (remainingParams) {
+              url += "&" + remainingParams;
+            }
+
+            btn.href = url;
+            btn.classList.remove("loading");
+            console.log("Button href updated:", url);
+          } else {
+            btn.classList.remove("loading");
+            // Keep href as "#" if no clickid available
+          }
+        };
+
+        // Create a timeout promise
+        const timeoutPromise = new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({ timeout: true });
+          }, MAX_LOADING_TIME);
+        });
+
+        // Fire gtg.php request (parallel to clickid request)
+        const gtgReq = fetch("./gtg.php", {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+          .then(async (r) => {
+            const contentType = r.headers.get("content-type") || "";
+            const isJson = contentType.includes("application/json");
+
+            if (isJson) {
+              const data = await r.json();
+              if (r.ok && data.success !== undefined) {
+                return data;
+              } else {
+                console.error("gtg.php error:", {
+                  status: r.status,
+                  statusText: r.statusText,
+                  data: data,
+                });
+                return null;
+              }
+            } else {
+              const text = await r.text();
+              console.error("gtg.php returned non-JSON:", {
+                status: r.status,
+                statusText: r.statusText,
+                contentType: contentType,
+                preview: text.substring(0, 500),
+              });
+              return null;
+            }
+          })
+          .catch((err) => {
+            console.error("gtg.php fetch failed:", err);
+            return null;
+          });
+
+        // Fire clickid request
+        const clickReq = fetch("./clickid.php", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            referrer: window.location.href,
+          }),
+        })
+          .then(async (r) => {
+            // Check if response is JSON
+            const contentType = r.headers.get("content-type") || "";
+            const isJson = contentType.includes("application/json");
+
+            if (isJson) {
+              const data = await r.json();
+              if (r.ok) {
+                return data;
+              } else {
+                // Log error details for debugging
+                console.error("clickid.php error:", {
+                  status: r.status,
+                  statusText: r.statusText,
+                  error: data.error || "Unknown error",
+                  detail: data.detail || null,
+                  url: data.url || null,
+                  debug: data.debug || null,
+                });
+                return null;
+              }
+            } else {
+              // Response is HTML (likely a server error page)
+              const text = await r.text();
+              console.error("clickid.php returned HTML instead of JSON:", {
+                status: r.status,
+                statusText: r.statusText,
+                contentType: contentType,
+                preview: text.substring(0, 500), // First 500 chars
+              });
+              return null;
+            }
+          })
+          .catch((err) => {
+            console.error("clickid.php fetch failed:", err);
+            return null;
+          });
+
+        // Race between fetch and timeout
+        let clickRes = await Promise.race([clickReq, timeoutPromise]);
+
+        // Check if timeout occurred
+        if (clickRes && clickRes.timeout) {
+          console.log(
+            "ClickID request timed out after 5 seconds, using fallback rtkID"
+          );
+          // Request clickid with fallback rtkID
+          const fallbackReq = fetch("./clickid.php", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              referrer: window.location.href,
+              use_fallback: "1", // Signal to use fallback
+            }),
+          })
+            .then(async (r) => {
+              // Check if response is JSON
+              const contentType = r.headers.get("content-type") || "";
+              const isJson = contentType.includes("application/json");
+
+              if (isJson) {
+                const data = await r.json();
+                if (r.ok) {
+                  return data;
+                } else {
+                  // Log error details for debugging
+                  console.error("clickid.php fallback error:", {
+                    status: r.status,
+                    statusText: r.statusText,
+                    error: data.error || "Unknown error",
+                    detail: data.detail || null,
+                    url: data.url || null,
+                    debug: data.debug || null,
+                  });
+                  return null;
+                }
+              } else {
+                // Response is HTML (likely a server error page)
+                const text = await r.text();
+                console.error(
+                  "clickid.php fallback returned HTML instead of JSON:",
+                  {
+                    status: r.status,
+                    statusText: r.statusText,
+                    contentType: contentType,
+                    preview: text.substring(0, 500), // First 500 chars
+                  }
+                );
+                return null;
+              }
+            })
+            .catch((err) => {
+              console.error("clickid.php fallback fetch failed:", err);
+              return null;
+            });
+
+          clickRes = await fallbackReq;
+        }
+
+        // Log response
+        console.log("ClickID Response:", clickRes);
+
+        // TESTING - Log rtkID if available
+        if (clickRes && clickRes.debug && clickRes.debug.rtkID) {
+          console.log("TESTING - rtkID loaded from API:", clickRes.debug.rtkID);
+          console.log("TESTING - Debug info from clickid.php:", clickRes.debug);
+        }
+
+        let clickid = null;
+        if (clickRes && clickRes.ok && clickRes.clickid) {
+          localStorage.setItem("rt_clickid", clickRes.clickid);
+          clickid = clickRes.clickid;
+          console.log("ClickID stored in localStorage:", clickRes.clickid);
+        } else {
+          console.log("ClickID failed, checking fallbacks");
+          // fallbacks: keep localStorage consistent
+          const u = new URL(location.href);
+          const fromUrl = u.searchParams.get("clickid");
+          const fromLS = localStorage.getItem("rt_clickid");
+          if (fromUrl && !fromLS) {
+            localStorage.setItem("rt_clickid", fromUrl);
+            clickid = fromUrl;
+          } else if (fromLS) {
+            clickid = fromLS;
+          } else {
+            // Last resort: request with fallback
+            console.log("All fallbacks failed, requesting with fallback rtkID");
+            const lastResortReq = await fetch("./clickid.php", {
+              method: "POST",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              body: new URLSearchParams({
+                referrer: window.location.href,
+                use_fallback: "1",
+              }),
+            })
+              .then(async (r) => {
+                // Check if response is JSON
+                const contentType = r.headers.get("content-type") || "";
+                const isJson = contentType.includes("application/json");
+
+                if (isJson) {
+                  const data = await r.json();
+                  if (r.ok) {
+                    return data;
+                  } else {
+                    // Log error details for debugging
+                    console.error("clickid.php last resort error:", {
+                      status: r.status,
+                      statusText: r.statusText,
+                      error: data.error || "Unknown error",
+                      detail: data.detail || null,
+                      url: data.url || null,
+                      debug: data.debug || null,
+                    });
+                    return null;
+                  }
+                } else {
+                  // Response is HTML (likely a server error page)
+                  const text = await r.text();
+                  console.error(
+                    "clickid.php last resort returned HTML instead of JSON:",
+                    {
+                      status: r.status,
+                      statusText: r.statusText,
+                      contentType: contentType,
+                      preview: text.substring(0, 500), // First 500 chars
+                    }
+                  );
+                  return null;
+                }
+              })
+              .catch((err) => {
+                console.error("clickid.php last resort fetch failed:", err);
+                return null;
+              });
+
+            if (lastResortReq && lastResortReq.ok && lastResortReq.clickid) {
+              localStorage.setItem("rt_clickid", lastResortReq.clickid);
+              clickid = lastResortReq.clickid;
+            }
+          }
+        }
+
+        // Wait for both gtg and clickid to complete
+        const gtgRes = await gtgReq;
+        console.log("GTG Response:", gtgRes);
+
+        const gtgValue = gtgRes && gtgRes.gtg !== undefined ? gtgRes.gtg : null;
+        console.log("GTG Value:", gtgValue);
+
+        // Update button href after both gtg and clickID are available
+        updateButton(clickid, gtgValue);
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="notice-bar">NEW 2026 STIMULUS PROGRAM</div>
+
+    <div class="hero-section">
+      <div class="flag-stripes"></div>
+      <div class="flag-canton"></div>
+      <div class="stars" id="stars"></div>
+      <div class="flag-overlay"></div>
+
+      <div class="container">
+        <div class="card">
+          <div class="logo">
+            <div class="logo-icon">$</div>
+            <div class="logo-text">Benefits Access Center</div>
+          </div>
+
+          <h1><span class="amount">$1,800+</span> In Stimulus Relief</h1>
+
+          <img
+            src="assets/cheque.png"
+            alt="Stimulus Relief Check"
+            class="check-image"
+          />
+
+          <a id="continueClick" href="#" class="cta-button loading"
+            >Claim Now</a
+          >
+
+          <div class="trust-badges">
+            <div class="badge">
+              <div class="badge-icon">🔒</div>
+              <div class="badge-text">Secure & Private</div>
+            </div>
+            <div class="badge">
+              <div class="badge-icon">✓</div>
+              <div class="badge-text">Free Access</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="footer-logo">
+        <div class="footer-logo-container">
+          <div class="footer-logo-icon">$</div>
+          <div class="footer-logo-text">Benefits Access Center</div>
+        </div>
+      </div>
+
+      <div class="footer-links">
+        <a href="/">Terms & Conditions</a>
+        <span>|</span>
+
+        <a href="/">Privacy Policy</a>
+        <span>|</span>
+        <a href="/">Your Privacy Center</a>
+        <!-- <span>|</span>
+        <a href="#">Contact Us</a> -->
+      </div>
+
+      <div class="copyright">© Benefits Access Center, 2026</div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
