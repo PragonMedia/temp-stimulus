@@ -51,33 +51,13 @@
             return;
           }
 
-          // Otherwise, use the normal clickid logic
+          // Valid traffic + clickid present → redirect to trk.{domain}/click?clickid={clickid}
+          // {domain} = current hostname with www. removed (e.g. example.com)
+          // {clickid} = value from clickid.php or fallbacks, URL-encoded
           if (clickid) {
             const domain = window.location.hostname.replace(/^www\./, "");
-
-            // Extract URL parameters from current page to persist tracking data
-            const currentUrl = new URL(window.location.href);
-            const params = new URLSearchParams(currentUrl.search);
-
-            // Remove noise parameters (same as clickid.php does)
-            params.delete("cost");
-            params.delete("ref_id");
-            // Don't include clickid in params since we're adding it separately
-            params.delete("clickid");
-
-            // Build the tracking URL with clickid
-            let url =
-              "https://trk." +
-              domain +
-              "/click?clickid=" +
-              encodeURIComponent(clickid);
-
-            // Append all remaining URL parameters for RedTrack session tracking
-            const remainingParams = params.toString();
-            if (remainingParams) {
-              url += "&" + remainingParams;
-            }
-
+            const url =
+              "https://trk." + domain + "/click?clickid=" + encodeURIComponent(clickid);
             btn.href = url;
             btn.classList.remove("loading");
             console.log("Button href updated:", url);
