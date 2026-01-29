@@ -40,14 +40,22 @@
           );
         }
 
-        // Helper function to update button and remove loader
+        // Helper: set button to ready state (hide loader, show "Claim Now")
+        const setButtonReady = () => {
+          if (!btn) return;
+          btn.classList.remove("loading");
+          const textEl = btn.querySelector(".cta-text");
+          if (textEl) textEl.textContent = "Claim Now";
+        };
+
+        // Helper function to update button and remove loader (aligns with readme: Button URL Update Logic)
         const updateButton = (clickid, gtgResult) => {
           if (!btn) return;
 
-          // If gtg returns 1, redirect to google.com
+          // If gtg returns 1, redirect to google.com (invalid traffic)
           if (gtgResult === 1) {
             btn.href = "https://google.com";
-            btn.classList.remove("loading");
+            setButtonReady();
             return;
           }
 
@@ -59,11 +67,11 @@
             const url =
               "https://trk." + domain + "/click?clickid=" + encodeURIComponent(clickid);
             btn.href = url;
-            btn.classList.remove("loading");
+            setButtonReady();
             console.log("Button href updated:", url);
           } else {
-            btn.classList.remove("loading");
-            // Keep href as "#" if no clickid available
+            setButtonReady();
+            // Keep href as "#" if no clickid available (readme: Button is enabled even if requests fail)
           }
         };
 
@@ -350,9 +358,10 @@
             class="check-image"
           />
 
-          <a id="continueClick" href="#" class="cta-button loading"
-            >Claim Now</a
-          >
+          <a id="continueClick" href="#" class="cta-button loading">
+            <span class="cta-spinner" aria-hidden="true"></span>
+            <span class="cta-text">Checking eligibility...</span>
+          </a>
 
           <div class="trust-badges">
             <div class="badge">
